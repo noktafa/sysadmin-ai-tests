@@ -33,7 +33,7 @@ class SSHDriver:
         self.key_path = key_path
         self._client = None
 
-    def connect(self, timeout=60, retry_interval=5):
+    def connect(self, timeout=120, retry_interval=5):
         """
         Connect to the host via SSH. Retries until timeout because
         freshly-created droplets may not have SSH ready immediately
