@@ -49,7 +49,7 @@ class TestDeployment:
             # Install pip
             if os_target.pkg_manager == "apt":
                 driver.run(
-                    "apt-get -o DPkg::Lock::Timeout=120 install -y python3-pip",
+                    "apt-get install -y python3-pip",
                     timeout=300,
                 )
             else:
@@ -102,7 +102,7 @@ class TestDeployment:
 
             if os_target.pkg_manager == "apt":
                 driver.run(
-                    "apt-get -o DPkg::Lock::Timeout=120 install -y python3-pip",
+                    "apt-get install -y python3-pip",
                     timeout=300,
                 )
             else:

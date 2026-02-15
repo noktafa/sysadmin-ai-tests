@@ -20,11 +20,19 @@ class OSTarget:
         return self.name == other.name and self.image == other.image
 
 
+# Shell one-liner that waits for ALL apt locks (dpkg + apt lists) before
+# proceeding.  cloud-init holds these locks on fresh droplets for up to ~90s.
+# DPkg::Lock::Timeout only covers the dpkg lock, not /var/lib/apt/lists/lock.
+_APT_WAIT = (
+    "while fuser /var/lib/dpkg/lock /var/lib/apt/lists/lock "
+    "/var/lib/dpkg/lock-frontend /var/cache/apt/archives/lock "
+    ">/dev/null 2>&1; do echo 'Waiting for apt locks...'; sleep 5; done"
+)
+
 OS_MATRIX = [
     # --- Debian family (apt) ---
-    # All apt-based targets use -o DPkg::Lock::Timeout=120 so that
-    # apt-get waits for cloud-init to release the apt lock on fresh
-    # droplets instead of failing immediately.
+    # All apt-based targets first wait for cloud-init to release every apt
+    # lock before running apt-get.
     OSTarget(
         name="ubuntu-24.04",
         image="ubuntu-24-04-x64",
@@ -32,8 +40,9 @@ OS_MATRIX = [
         family="debian",
         python_install="apt-get update && apt-get install -y python3",
         setup_commands=[
-            "apt-get -o DPkg::Lock::Timeout=120 update",
-            "apt-get -o DPkg::Lock::Timeout=120 install -y python3",
+            _APT_WAIT,
+            "apt-get update",
+            "apt-get install -y python3",
         ],
         # Ubuntu 24.04 enforces PEP 668 — pip requires --break-system-packages
         pip_flags="--break-system-packages --ignore-installed",
@@ -45,8 +54,9 @@ OS_MATRIX = [
         family="debian",
         python_install="apt-get update && apt-get install -y python3",
         setup_commands=[
-            "apt-get -o DPkg::Lock::Timeout=120 update",
-            "apt-get -o DPkg::Lock::Timeout=120 install -y python3",
+            _APT_WAIT,
+            "apt-get update",
+            "apt-get install -y python3",
         ],
         # Ubuntu 22.04 has pip 22.x — does NOT support --break-system-packages
         # and does NOT enforce PEP 668, so no extra flags needed.
@@ -59,8 +69,9 @@ OS_MATRIX = [
         family="debian",
         python_install="apt-get update && apt-get install -y python3",
         setup_commands=[
-            "apt-get -o DPkg::Lock::Timeout=120 update",
-            "apt-get -o DPkg::Lock::Timeout=120 install -y python3",
+            _APT_WAIT,
+            "apt-get update",
+            "apt-get install -y python3",
         ],
         # Debian 12 enforces PEP 668 — pip requires --break-system-packages
         pip_flags="--break-system-packages --ignore-installed",

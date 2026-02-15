@@ -206,9 +206,19 @@ def ssh_connect(droplet_pool, ssh_keypair):
                 f"{_failed[os_target.name]}"
             )
 
-        # Return cached connection if available
+        # Return cached connection if still healthy
         if os_target.name in _connections:
-            return _PooledDriver(_connections[os_target.name])
+            driver = _connections[os_target.name]
+            try:
+                driver.run("true", timeout=10)
+                return _PooledDriver(driver)
+            except Exception:
+                # Connection is stale — close and reconnect below
+                try:
+                    driver.close()
+                except Exception:
+                    pass
+                del _connections[os_target.name]
 
         try:
             entry = droplet_pool(os_target)

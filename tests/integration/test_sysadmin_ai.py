@@ -50,7 +50,7 @@ def _ensure_deployed(driver, os_target, sysadmin_ai_path):
     # Install pip (idempotent)
     if os_target.pkg_manager == "apt":
         driver.run(
-            "apt-get -o DPkg::Lock::Timeout=120 install -y python3-pip",
+            "apt-get install -y python3-pip",
             timeout=300,
         )
     else:
