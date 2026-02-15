@@ -19,11 +19,14 @@ class DropletController:
         self.size = size
         self.manager = digitalocean.Manager(token=self.token)
 
-    def create(self, image, name=None):
+    def create(self, image, name=None, ssh_keys=None):
         if name is None:
             short = image.split("-")[0]
             hex_suffix = uuid.uuid4().hex[:4]
             name = f"test-{short}-{hex_suffix}"
+
+        if ssh_keys is None:
+            ssh_keys = self.manager.get_all_sshkeys()
 
         droplet = digitalocean.Droplet(
             token=self.token,
@@ -32,7 +35,7 @@ class DropletController:
             size_slug=self.size,
             image=image,
             tags=[self.TAG],
-            ssh_keys=self.manager.get_all_sshkeys(),
+            ssh_keys=ssh_keys,
         )
         droplet.create()
 
