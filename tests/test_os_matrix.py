@@ -85,19 +85,19 @@ class TestMatrixIntegrity:
             assert t.python_install, f"{t.name} has empty python_install"
 
     def test_expected_count(self):
-        assert len(get_all()) == 7
+        assert len(get_all()) == 6
 
 
 class TestGetAll:
     def test_returns_all_entries(self):
-        assert len(get_all()) == 7
+        assert len(get_all()) == 6
 
     def test_returns_copy(self):
         a = get_all()
         b = get_all()
         assert a is not b
         a.append("junk")
-        assert len(get_all()) == 7
+        assert len(get_all()) == 6
 
 
 class TestGetByName:
@@ -121,7 +121,7 @@ class TestGetByFamily:
         assert len(get_by_family("debian")) == 3
 
     def test_rhel_returns_4(self):
-        assert len(get_by_family("rhel")) == 4
+        assert len(get_by_family("rhel")) == 3
 
     def test_unknown_returns_empty(self):
         assert get_by_family("bsd") == []
@@ -132,7 +132,7 @@ class TestGetByPkgManager:
         assert len(get_by_pkg_manager("apt")) == 3
 
     def test_dnf_returns_4(self):
-        assert len(get_by_pkg_manager("dnf")) == 4
+        assert len(get_by_pkg_manager("dnf")) == 3
 
     def test_unknown_returns_empty(self):
         assert get_by_pkg_manager("pacman") == []

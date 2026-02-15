@@ -97,15 +97,6 @@ OS_MATRIX = [
         pip_flags="",
     ),
     OSTarget(
-        name="rocky-9",
-        image="rockylinux-9-x64",
-        pkg_manager="dnf",
-        family="rhel",
-        python_install="dnf install -y python3",
-        setup_commands=["dnf install -y python3"],
-        pip_flags="",
-    ),
-    OSTarget(
         name="almalinux-9",
         image="almalinux-9-x64",
         pkg_manager="dnf",
