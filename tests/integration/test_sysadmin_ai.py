@@ -1,10 +1,19 @@
 import json
+import os
+import threading
 
 import pytest
 
 from tests.integration.conftest import os_target_params
 
 REMOTE_DEPLOY_DIR = "/opt/sysadmin-ai"
+
+# Thread-safe results log — survives xdist worker isolation
+_results_lock = threading.Lock()
+_RESULTS_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+    "logs", "sysadmin_ai_results.jsonl",
+)
 
 
 def _run_sysadmin_ai_function(driver, python_expression, os_name=""):
@@ -18,7 +27,7 @@ def _run_sysadmin_ai_function(driver, python_expression, os_name=""):
     4. json.dumps the result to stdout
 
     Returns the parsed JSON (tuples become lists).
-    Logs the call and result for inspection.
+    Writes each call+result to logs/sysadmin_ai_results.jsonl.
     """
     remote_code = (
         "import sys, json; "
@@ -35,9 +44,17 @@ def _run_sysadmin_ai_function(driver, python_expression, os_name=""):
         f"stdout: {result['stdout']}\nstderr: {result['stderr']}"
     )
     parsed = json.loads(result["stdout"].strip())
-    prefix = f"[{os_name}] " if os_name else ""
-    print(f"\n  {prefix}{python_expression}")
-    print(f"  {prefix}  => {json.dumps(parsed)}")
+
+    # Write to results file (thread-safe, works across xdist workers)
+    entry = {"os": os_name, "call": python_expression, "result": parsed}
+    try:
+        os.makedirs(os.path.dirname(_RESULTS_FILE), exist_ok=True)
+        with _results_lock:
+            with open(_RESULTS_FILE, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
     return parsed
 
 
