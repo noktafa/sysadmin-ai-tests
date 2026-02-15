@@ -157,19 +157,47 @@ def droplet_pool(controller, registered_ssh_key, session_guard):
         session_guard.cleanup(controller)
 
 
+class _PooledDriver:
+    """Thin wrapper around SSHDriver that suppresses close().
+
+    Tests call driver.close() in finally blocks, but with connection
+    pooling we want to keep the connection alive for reuse.  The real
+    cleanup happens in the ssh_connect fixture teardown.
+    """
+
+    def __init__(self, driver):
+        self._driver = driver
+
+    def run(self, command, timeout=120):
+        return self._driver.run(command, timeout=timeout)
+
+    def upload_file(self, local_path, remote_path):
+        return self._driver.upload_file(local_path, remote_path)
+
+    def upload_dir(self, local_path, remote_path):
+        return self._driver.upload_dir(local_path, remote_path)
+
+    def close(self):
+        pass  # no-op — connection stays alive for reuse
+
+
 @pytest.fixture(scope="session")
 def ssh_connect(droplet_pool, ssh_keypair):
     """
-    Factory fixture: connect(os_target) → connected SSHDriver.
+    Factory fixture: connect(os_target) → pooled SSHDriver wrapper.
 
-    Caller is responsible for closing the returned driver.
+    Connections are cached and reused across tests for the same OS target.
+    This avoids SSH reconnection failures on VMs where cloud-init restarts
+    sshd (e.g. Rocky 9).  Tests still call driver.close() in finally blocks
+    but the wrapper makes it a no-op.
 
-    Fail-fast: if droplet creation or SSH connection fails for an OS target,
-    the error is cached and all subsequent tests for that target skip
-    immediately instead of re-attempting and wasting time/money.
+    Fail-fast: if droplet creation or the initial SSH connection fails for
+    an OS target, the error is cached and all subsequent tests for that
+    target skip immediately.
     """
     private_key, _ = ssh_keypair
-    _failed = {}  # os_target.name → error message
+    _failed = {}       # os_target.name → error message
+    _connections = {}   # os_target.name → SSHDriver (real, not wrapped)
 
     def connect(os_target):
         if os_target.name in _failed:
@@ -177,6 +205,11 @@ def ssh_connect(droplet_pool, ssh_keypair):
                 f"Skipping — VM for {os_target.name} is unavailable: "
                 f"{_failed[os_target.name]}"
             )
+
+        # Return cached connection if available
+        if os_target.name in _connections:
+            return _PooledDriver(_connections[os_target.name])
+
         try:
             entry = droplet_pool(os_target)
             driver = SSHDriver(
@@ -185,12 +218,20 @@ def ssh_connect(droplet_pool, ssh_keypair):
                 key=private_key,
             )
             driver.connect()
-            return driver
+            _connections[os_target.name] = driver
+            return _PooledDriver(driver)
         except Exception as exc:
             _failed[os_target.name] = str(exc)
             raise
 
-    return connect
+    yield connect
+
+    # Teardown: close all cached connections
+    for driver in _connections.values():
+        try:
+            driver.close()
+        except Exception:
+            pass
 
 
 @pytest.fixture(scope="session")
