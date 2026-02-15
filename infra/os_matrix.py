@@ -1,6 +1,7 @@
 class OSTarget:
     def __init__(self, name, image, user="root", pkg_manager="apt",
-                 family="debian", python_install="", setup_commands=None):
+                 family="debian", python_install="", setup_commands=None,
+                 pip_flags=""):
         self.name = name
         self.image = image
         self.user = user
@@ -8,6 +9,7 @@ class OSTarget:
         self.family = family
         self.python_install = python_install
         self.setup_commands = setup_commands if setup_commands is not None else []
+        self.pip_flags = pip_flags
 
     def __repr__(self):
         return f"OSTarget(name={self.name!r}, image={self.image!r}, family={self.family!r})"
@@ -19,14 +21,22 @@ class OSTarget:
 
 
 OS_MATRIX = [
-    # Debian family (apt)
+    # --- Debian family (apt) ---
+    # All apt-based targets use -o DPkg::Lock::Timeout=120 so that
+    # apt-get waits for cloud-init to release the apt lock on fresh
+    # droplets instead of failing immediately.
     OSTarget(
         name="ubuntu-24.04",
         image="ubuntu-24-04-x64",
         pkg_manager="apt",
         family="debian",
         python_install="apt-get update && apt-get install -y python3",
-        setup_commands=["apt-get update", "apt-get install -y python3"],
+        setup_commands=[
+            "apt-get -o DPkg::Lock::Timeout=120 update",
+            "apt-get -o DPkg::Lock::Timeout=120 install -y python3",
+        ],
+        # Ubuntu 24.04 enforces PEP 668 — pip requires --break-system-packages
+        pip_flags="--break-system-packages --ignore-installed",
     ),
     OSTarget(
         name="ubuntu-22.04",
@@ -34,7 +44,13 @@ OS_MATRIX = [
         pkg_manager="apt",
         family="debian",
         python_install="apt-get update && apt-get install -y python3",
-        setup_commands=["apt-get update", "apt-get install -y python3"],
+        setup_commands=[
+            "apt-get -o DPkg::Lock::Timeout=120 update",
+            "apt-get -o DPkg::Lock::Timeout=120 install -y python3",
+        ],
+        # Ubuntu 22.04 has pip 22.x — does NOT support --break-system-packages
+        # and does NOT enforce PEP 668, so no extra flags needed.
+        pip_flags="",
     ),
     OSTarget(
         name="debian-12",
@@ -42,9 +58,15 @@ OS_MATRIX = [
         pkg_manager="apt",
         family="debian",
         python_install="apt-get update && apt-get install -y python3",
-        setup_commands=["apt-get update", "apt-get install -y python3"],
+        setup_commands=[
+            "apt-get -o DPkg::Lock::Timeout=120 update",
+            "apt-get -o DPkg::Lock::Timeout=120 install -y python3",
+        ],
+        # Debian 12 enforces PEP 668 — pip requires --break-system-packages
+        pip_flags="--break-system-packages --ignore-installed",
     ),
-    # RHEL family (dnf)
+    # --- RHEL family (dnf) ---
+    # dnf does not have a cloud-init lock issue; no pip_flags needed.
     OSTarget(
         name="centos-stream-9",
         image="centos-stream-9-x64",
@@ -52,6 +74,7 @@ OS_MATRIX = [
         family="rhel",
         python_install="dnf install -y python3",
         setup_commands=["dnf install -y python3"],
+        pip_flags="",
     ),
     OSTarget(
         name="fedora-42",
@@ -60,6 +83,7 @@ OS_MATRIX = [
         family="rhel",
         python_install="dnf install -y python3",
         setup_commands=["dnf install -y python3"],
+        pip_flags="",
     ),
     OSTarget(
         name="rocky-9",
@@ -68,6 +92,7 @@ OS_MATRIX = [
         family="rhel",
         python_install="dnf install -y python3",
         setup_commands=["dnf install -y python3"],
+        pip_flags="",
     ),
     OSTarget(
         name="almalinux-9",
@@ -76,6 +101,7 @@ OS_MATRIX = [
         family="rhel",
         python_install="dnf install -y python3",
         setup_commands=["dnf install -y python3"],
+        pip_flags="",
     ),
 ]
 

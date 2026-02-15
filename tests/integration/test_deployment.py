@@ -39,24 +39,24 @@ class TestDeployment:
             driver.close()
 
     def test_pip_install_openai(self, ssh_connect, os_target):
-        """pip3 install openai succeeds (with --break-system-packages fallback)."""
+        """pip3 install openai succeeds (using os_target.pip_flags)."""
         driver = ssh_connect(os_target)
         try:
             # Ensure python3/pip3 available
             for cmd in os_target.setup_commands:
                 driver.run(cmd, timeout=300)
 
-            # Install pip if needed
+            # Install pip
             if os_target.pkg_manager == "apt":
-                driver.run("apt-get install -y python3-pip", timeout=300)
+                driver.run(
+                    "apt-get -o DPkg::Lock::Timeout=120 install -y python3-pip",
+                    timeout=300,
+                )
             else:
                 driver.run("dnf install -y python3-pip", timeout=300)
 
-            # PEP 668 compat: use --break-system-packages + --ignore-installed on apt
-            if os_target.pkg_manager == "apt":
-                pip_cmd = "pip3 install --break-system-packages --ignore-installed openai"
-            else:
-                pip_cmd = "pip3 install openai"
+            # Install openai with OS-specific pip flags
+            pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
             result = driver.run(pip_cmd, timeout=300)
             assert result["exit_code"] == 0, (
                 f"pip install openai failed on {os_target.name}:\n"
@@ -101,14 +101,14 @@ class TestDeployment:
                 driver.run(cmd, timeout=300)
 
             if os_target.pkg_manager == "apt":
-                driver.run("apt-get install -y python3-pip", timeout=300)
+                driver.run(
+                    "apt-get -o DPkg::Lock::Timeout=120 install -y python3-pip",
+                    timeout=300,
+                )
             else:
                 driver.run("dnf install -y python3-pip", timeout=300)
 
-            if os_target.pkg_manager == "apt":
-                pip_cmd = "pip3 install --break-system-packages --ignore-installed openai"
-            else:
-                pip_cmd = "pip3 install openai"
+            pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
             driver.run(pip_cmd, timeout=300)
             driver.upload_dir(sysadmin_ai_path, REMOTE_DEPLOY_DIR)
 

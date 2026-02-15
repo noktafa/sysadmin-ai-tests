@@ -49,15 +49,15 @@ def _ensure_deployed(driver, os_target, sysadmin_ai_path):
 
     # Install pip (idempotent)
     if os_target.pkg_manager == "apt":
-        driver.run("apt-get install -y python3-pip", timeout=300)
+        driver.run(
+            "apt-get -o DPkg::Lock::Timeout=120 install -y python3-pip",
+            timeout=300,
+        )
     else:
         driver.run("dnf install -y python3-pip", timeout=300)
 
-    # Install openai (idempotent)
-    if os_target.pkg_manager == "apt":
-        pip_cmd = "pip3 install --break-system-packages --ignore-installed openai"
-    else:
-        pip_cmd = "pip3 install openai"
+    # Install openai using OS-specific pip flags (idempotent)
+    pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
     driver.run(pip_cmd, timeout=300)
 
     # Upload sysadmin-ai (idempotent: overwrites)
