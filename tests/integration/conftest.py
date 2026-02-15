@@ -251,6 +251,15 @@ def deployment_state():
 
 
 @pytest.fixture(scope="session")
+def openai_api_key():
+    """Read OPENAI_API_KEY from env; skip test if missing."""
+    key = os.environ.get("OPENAI_API_KEY")
+    if not key:
+        pytest.skip("OPENAI_API_KEY not set")
+    return key
+
+
+@pytest.fixture(scope="session")
 def sysadmin_ai_path():
     """Resolve the local sysadmin-ai project directory."""
     env_path = os.environ.get("SYSADMIN_AI_PATH")

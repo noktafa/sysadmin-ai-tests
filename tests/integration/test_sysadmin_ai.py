@@ -58,6 +58,46 @@ def _run_sysadmin_ai_function(driver, python_expression, os_name=""):
     return parsed
 
 
+def _run_remote_python(driver, code, env=None, os_name=""):
+    """
+    Execute a multi-line Python snippet on the remote host and return parsed JSON.
+
+    Unlike _run_sysadmin_ai_function (which wraps a single expression in
+    double-quoted python3 -c "..."), this helper uses single-quoted shell
+    strings so the Python code can contain double quotes, dict literals, etc.
+
+    The last line of *code* must print(json.dumps(...)) to produce output.
+    *env* is an optional dict of environment variables injected as an inline
+    prefix (never written to disk).
+    """
+    # Escape single quotes in the Python code for the shell
+    escaped_code = code.replace("'", "'\\''")
+
+    env_prefix = ""
+    if env:
+        env_prefix = " ".join(f"{k}={v}" for k, v in env.items()) + " "
+
+    cmd = f"{env_prefix}python3 -c '{escaped_code}'"
+    result = driver.run(cmd)
+    assert result["exit_code"] == 0, (
+        f"Remote Python execution failed:\n"
+        f"stdout: {result['stdout']}\nstderr: {result['stderr']}"
+    )
+    parsed = json.loads(result["stdout"].strip())
+
+    # Write to results file (thread-safe, works across xdist workers)
+    entry = {"os": os_name, "call": "run_remote_python", "result": parsed}
+    try:
+        os.makedirs(os.path.dirname(_RESULTS_FILE), exist_ok=True)
+        with _results_lock:
+            with open(_RESULTS_FILE, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+    except Exception:
+        pass
+
+    return parsed
+
+
 _deployed_targets = set()
 
 
@@ -177,5 +217,42 @@ class TestSysadminAi:
             )
             assert "[REDACTED]" in result
             assert "sk-abc123def456ghi789jkl012mno345" not in result
+        finally:
+            driver.close()
+
+    def test_openai_api_connectivity(
+        self, ssh_connect, os_target, sysadmin_ai_path, openai_api_key
+    ):
+        """Live OpenAI API call via build_client returns a non-empty response."""
+        driver = ssh_connect(os_target)
+        try:
+            _ensure_deployed(driver, os_target, sysadmin_ai_path)
+            code = (
+                "import sys, json, os, types\n"
+                f"sys.path.insert(0, '{REMOTE_DEPLOY_DIR}')\n"
+                "import sysadmin_ai\n"
+                "args = types.SimpleNamespace(\n"
+                "    provider=\"openai\",\n"
+                "    api_key=os.environ[\"OPENAI_API_KEY\"],\n"
+                "    api_base=None,\n"
+                "    model=\"gpt-4o-mini\",\n"
+                ")\n"
+                "client, model, base_url = sysadmin_ai.build_client(args)\n"
+                "resp = client.chat.completions.create(\n"
+                "    model=model,\n"
+                "    messages=[{\"role\": \"user\", \"content\": \"Say hi\"}],\n"
+                "    max_tokens=5,\n"
+                ")\n"
+                "print(json.dumps(resp.choices[0].message.content))\n"
+            )
+            result = _run_remote_python(
+                driver,
+                code,
+                env={"OPENAI_API_KEY": openai_api_key},
+                os_name=os_target.name,
+            )
+            assert isinstance(result, str) and len(result) > 0, (
+                f"Expected non-empty string from OpenAI, got: {result!r}"
+            )
         finally:
             driver.close()
