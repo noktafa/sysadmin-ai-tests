@@ -41,32 +41,31 @@ def _run_sysadmin_ai_function(driver, python_expression, os_name=""):
     return parsed
 
 
+_deployed_targets = set()
+
+
 def _ensure_deployed(driver, os_target, sysadmin_ai_path):
     """
-    Idempotent deployment: run setup commands, install pip/openai, upload code.
+    Deploy once per OS target, then skip entirely on subsequent calls.
 
-    All operations are no-ops when already done. First call pays ~60-120s,
-    subsequent calls ~3-5s.
+    First call: cloud-init wait + package install + pip + SFTP upload.
+    Subsequent calls: instant return (zero SSH roundtrips).
     """
-    # Setup commands (idempotent: apt-get update, install python3)
+    if os_target.name in _deployed_targets:
+        return
+
+    # Setup: wait for cloud-init + install python3/pip in one command
     for cmd in os_target.setup_commands:
         driver.run(cmd, timeout=300)
 
-    # Install pip (idempotent)
-    if os_target.pkg_manager == "apt":
-        driver.run(
-            "apt-get install -y python3-pip",
-            timeout=300,
-        )
-    else:
-        driver.run("dnf install -y python3-pip", timeout=300)
-
-    # Install openai using OS-specific pip flags (idempotent)
+    # Install openai
     pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
     driver.run(pip_cmd, timeout=300)
 
-    # Upload sysadmin-ai (idempotent: overwrites)
+    # Upload sysadmin-ai
     driver.upload_dir(sysadmin_ai_path, REMOTE_DEPLOY_DIR)
+
+    _deployed_targets.add(os_target.name)
 
 
 @os_target_params()

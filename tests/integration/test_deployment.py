@@ -4,6 +4,21 @@ from tests.integration.conftest import os_target_params
 
 REMOTE_DEPLOY_DIR = "/opt/sysadmin-ai"
 
+_setup_done = set()
+
+
+def _run_setup_once(driver, os_target):
+    """Run setup_commands once per OS target, skip on subsequent calls."""
+    if os_target.name in _setup_done:
+        return
+    for cmd in os_target.setup_commands:
+        result = driver.run(cmd, timeout=300)
+        assert result["exit_code"] == 0, (
+            f"Setup command failed on {os_target.name}: {cmd!r}\n"
+            f"stdout: {result['stdout']}\nstderr: {result['stderr']}"
+        )
+    _setup_done.add(os_target.name)
+
 
 @os_target_params()
 @pytest.mark.integration
@@ -13,12 +28,7 @@ class TestDeployment:
         """Each os_target.setup_commands exits 0."""
         driver = ssh_connect(os_target)
         try:
-            for cmd in os_target.setup_commands:
-                result = driver.run(cmd, timeout=300)
-                assert result["exit_code"] == 0, (
-                    f"Setup command failed on {os_target.name}: {cmd!r}\n"
-                    f"stdout: {result['stdout']}\nstderr: {result['stderr']}"
-                )
+            _run_setup_once(driver, os_target)
         finally:
             driver.close()
 
@@ -26,10 +36,7 @@ class TestDeployment:
         """python3 --version works after setup."""
         driver = ssh_connect(os_target)
         try:
-            # Run setup commands first to ensure python3 is installed
-            for cmd in os_target.setup_commands:
-                driver.run(cmd, timeout=300)
-
+            _run_setup_once(driver, os_target)
             result = driver.run("python3 --version")
             assert result["exit_code"] == 0, (
                 f"python3 not available on {os_target.name}: {result['stderr']}"
@@ -42,20 +49,7 @@ class TestDeployment:
         """pip3 install openai succeeds (using os_target.pip_flags)."""
         driver = ssh_connect(os_target)
         try:
-            # Ensure python3/pip3 available
-            for cmd in os_target.setup_commands:
-                driver.run(cmd, timeout=300)
-
-            # Install pip
-            if os_target.pkg_manager == "apt":
-                driver.run(
-                    "apt-get install -y python3-pip",
-                    timeout=300,
-                )
-            else:
-                driver.run("dnf install -y python3-pip", timeout=300)
-
-            # Install openai with OS-specific pip flags
+            _run_setup_once(driver, os_target)
             pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
             result = driver.run(pip_cmd, timeout=300)
             assert result["exit_code"] == 0, (
@@ -71,7 +65,6 @@ class TestDeployment:
         try:
             driver.upload_dir(sysadmin_ai_path, REMOTE_DEPLOY_DIR)
 
-            # Verify key files exist remotely
             result = driver.run(
                 f"test -f {REMOTE_DEPLOY_DIR}/sysadmin_ai.py && echo OK"
             )
@@ -96,23 +89,11 @@ class TestDeployment:
         """python3 -c 'import sysadmin_ai' works; marks deployment_state."""
         driver = ssh_connect(os_target)
         try:
-            # Ensure full deployment pipeline is done
-            for cmd in os_target.setup_commands:
-                driver.run(cmd, timeout=300)
-
-            if os_target.pkg_manager == "apt":
-                driver.run(
-                    "apt-get install -y python3-pip",
-                    timeout=300,
-                )
-            else:
-                driver.run("dnf install -y python3-pip", timeout=300)
-
+            _run_setup_once(driver, os_target)
             pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
             driver.run(pip_cmd, timeout=300)
             driver.upload_dir(sysadmin_ai_path, REMOTE_DEPLOY_DIR)
 
-            # Test import
             import_cmd = (
                 f'python3 -c "import sys; sys.path.insert(0, \'{REMOTE_DEPLOY_DIR}\'); '
                 f'import sysadmin_ai; print(\'import OK\')"'
@@ -123,8 +104,6 @@ class TestDeployment:
                 f"stdout: {result['stdout']}\nstderr: {result['stderr']}"
             )
             assert "import OK" in result["stdout"]
-
-            # Mark this target as deployed
             deployment_state.add(os_target.name)
         finally:
             driver.close()
