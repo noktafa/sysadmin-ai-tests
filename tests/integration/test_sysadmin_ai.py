@@ -7,7 +7,7 @@ from tests.integration.conftest import os_target_params
 REMOTE_DEPLOY_DIR = "/opt/sysadmin-ai"
 
 
-def _run_sysadmin_ai_function(driver, python_expression):
+def _run_sysadmin_ai_function(driver, python_expression, os_name=""):
     """
     Execute a sysadmin_ai function on the remote host and return parsed result.
 
@@ -18,6 +18,7 @@ def _run_sysadmin_ai_function(driver, python_expression):
     4. json.dumps the result to stdout
 
     Returns the parsed JSON (tuples become lists).
+    Logs the call and result for inspection.
     """
     remote_code = (
         "import sys, json; "
@@ -33,7 +34,11 @@ def _run_sysadmin_ai_function(driver, python_expression):
         f"expression: {python_expression}\n"
         f"stdout: {result['stdout']}\nstderr: {result['stderr']}"
     )
-    return json.loads(result["stdout"].strip())
+    parsed = json.loads(result["stdout"].strip())
+    prefix = f"[{os_name}] " if os_name else ""
+    print(f"\n  {prefix}{python_expression}")
+    print(f"  {prefix}  => {json.dumps(parsed)}")
+    return parsed
 
 
 def _ensure_deployed(driver, os_target, sysadmin_ai_path):
@@ -74,7 +79,8 @@ class TestSysadminAi:
         try:
             _ensure_deployed(driver, os_target, sysadmin_ai_path)
             result = _run_sysadmin_ai_function(
-                driver, "sysadmin_ai.check_command_safety('ls -la')"
+                driver, "sysadmin_ai.check_command_safety('ls -la')",
+                os_name=os_target.name,
             )
             assert result == ["safe", None]
         finally:
@@ -86,7 +92,8 @@ class TestSysadminAi:
         try:
             _ensure_deployed(driver, os_target, sysadmin_ai_path)
             result = _run_sysadmin_ai_function(
-                driver, "sysadmin_ai.check_command_safety('rm -rf /')"
+                driver, "sysadmin_ai.check_command_safety('rm -rf /')",
+                os_name=os_target.name,
             )
             assert result[0] == "blocked"
             assert result[1], "Blocked reason should be non-empty"
@@ -101,6 +108,7 @@ class TestSysadminAi:
             result = _run_sysadmin_ai_function(
                 driver,
                 "sysadmin_ai.check_command_safety('systemctl stop nginx')",
+                os_name=os_target.name,
             )
             assert result[0] == "confirm"
             assert result[1], "Confirm reason should be non-empty"
@@ -115,7 +123,8 @@ class TestSysadminAi:
         try:
             _ensure_deployed(driver, os_target, sysadmin_ai_path)
             result = _run_sysadmin_ai_function(
-                driver, "sysadmin_ai._check_read_safety('/etc/shadow')"
+                driver, "sysadmin_ai._check_read_safety('/etc/shadow')",
+                os_name=os_target.name,
             )
             assert result[0] == "blocked"
             assert result[1], "Blocked reason should be non-empty"
@@ -130,7 +139,8 @@ class TestSysadminAi:
         try:
             _ensure_deployed(driver, os_target, sysadmin_ai_path)
             result = _run_sysadmin_ai_function(
-                driver, "sysadmin_ai._check_write_safety('/etc/passwd')"
+                driver, "sysadmin_ai._check_write_safety('/etc/passwd')",
+                os_name=os_target.name,
             )
             assert result[0] == "blocked"
             assert result[1], "Blocked reason should be non-empty"
@@ -147,6 +157,7 @@ class TestSysadminAi:
             result = _run_sysadmin_ai_function(
                 driver,
                 "sysadmin_ai.redact_text('my key is sk-abc123def456ghi789jkl012mno345')",
+                os_name=os_target.name,
             )
             assert "[REDACTED]" in result
             assert "sk-abc123def456ghi789jkl012mno345" not in result
