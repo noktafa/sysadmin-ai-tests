@@ -15,7 +15,7 @@ import digitalocean
 
 
 TAG = "sysadmin-ai-test"
-SSH_KEY_NAME = "sysadmin-ai-test-ephemeral"
+SSH_KEY_PREFIX = "sysadmin-ai-test-ephemeral"
 
 
 def get_tagged_droplets(manager):
@@ -23,7 +23,7 @@ def get_tagged_droplets(manager):
 
 
 def get_ephemeral_ssh_keys(manager):
-    return [k for k in manager.get_all_sshkeys() if k.name == SSH_KEY_NAME]
+    return [k for k in manager.get_all_sshkeys() if k.name.startswith(SSH_KEY_PREFIX)]
 
 
 def print_resources(droplets, ssh_keys):
@@ -35,11 +35,11 @@ def print_resources(droplets, ssh_keys):
         print(f"\nNo droplets found with tag '{TAG}'.")
 
     if ssh_keys:
-        print(f"\nSSH keys named '{SSH_KEY_NAME}' ({len(ssh_keys)}):")
+        print(f"\nSSH keys named '{SSH_KEY_PREFIX}' ({len(ssh_keys)}):")
         for k in ssh_keys:
             print(f"  - id={k.id}  fingerprint={k.fingerprint}")
     else:
-        print(f"\nNo SSH keys found named '{SSH_KEY_NAME}'.")
+        print(f"\nNo SSH keys found named '{SSH_KEY_PREFIX}'.")
 
 
 def destroy_resources(droplets, ssh_keys):

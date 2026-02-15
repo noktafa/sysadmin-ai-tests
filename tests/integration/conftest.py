@@ -10,22 +10,22 @@ from infra.ssh_driver import SSHDriver, generate_keypair
 
 
 def os_target_params():
-    """Shorthand for parametrize over all OS targets."""
+    """Shorthand for parametrize over all OS targets.
+
+    Each parameter carries an xdist_group marker so pytest-xdist keeps all
+    tests for the same OS target on the same worker.  Embedding the marker
+    in pytest.param() is more reliable than a collection hook because it
+    guarantees the marker exists before xdist schedules distribution.
+    """
     targets = get_all()
     return pytest.mark.parametrize(
         "os_target",
-        targets,
+        [
+            pytest.param(t, marks=pytest.mark.xdist_group(name=t.name))
+            for t in targets
+        ],
         ids=[t.name for t in targets],
     )
-
-
-def pytest_collection_modifyitems(items):
-    """Assign xdist_group markers so all tests for the same OS target
-    land on the same worker when running with pytest-xdist."""
-    for item in items:
-        if hasattr(item, "callspec") and "os_target" in item.callspec.params:
-            os_target = item.callspec.params["os_target"]
-            item.add_marker(pytest.mark.xdist_group(name=os_target.name))
 
 
 # ---------------------------------------------------------------------------
@@ -77,11 +77,16 @@ def ssh_keypair():
 
 @pytest.fixture(scope="session")
 def registered_ssh_key(do_token, ssh_keypair):
-    """Register the ephemeral public key with DigitalOcean; destroy on teardown."""
+    """Register the ephemeral public key with DigitalOcean; destroy on teardown.
+
+    Each xdist worker gets a unique key name to prevent collisions when
+    multiple workers register keys in parallel.
+    """
     _, pub_string = ssh_keypair
+    worker_id = os.environ.get("PYTEST_XDIST_WORKER", "main")
     do_key = digitalocean.SSHKey(
         token=do_token,
-        name="sysadmin-ai-test-ephemeral",
+        name=f"sysadmin-ai-test-ephemeral-{worker_id}",
         public_key=pub_string,
     )
     do_key.create()
@@ -158,18 +163,32 @@ def ssh_connect(droplet_pool, ssh_keypair):
     Factory fixture: connect(os_target) → connected SSHDriver.
 
     Caller is responsible for closing the returned driver.
+
+    Fail-fast: if droplet creation or SSH connection fails for an OS target,
+    the error is cached and all subsequent tests for that target skip
+    immediately instead of re-attempting and wasting time/money.
     """
     private_key, _ = ssh_keypair
+    _failed = {}  # os_target.name → error message
 
     def connect(os_target):
-        entry = droplet_pool(os_target)
-        driver = SSHDriver(
-            host=entry["ip"],
-            username=os_target.user,
-            key=private_key,
-        )
-        driver.connect()
-        return driver
+        if os_target.name in _failed:
+            pytest.skip(
+                f"Skipping — VM for {os_target.name} is unavailable: "
+                f"{_failed[os_target.name]}"
+            )
+        try:
+            entry = droplet_pool(os_target)
+            driver = SSHDriver(
+                host=entry["ip"],
+                username=os_target.user,
+                key=private_key,
+            )
+            driver.connect()
+            return driver
+        except Exception as exc:
+            _failed[os_target.name] = str(exc)
+            raise
 
     return connect
 

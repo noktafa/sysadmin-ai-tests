@@ -1,8 +1,5 @@
-import os
-
 import pytest
 
-from infra.os_matrix import get_all
 from tests.integration.conftest import os_target_params
 
 REMOTE_DEPLOY_DIR = "/opt/sysadmin-ai"

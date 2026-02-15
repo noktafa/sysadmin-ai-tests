@@ -15,17 +15,29 @@ import pytest
 
 
 def _integration_cleanup():
-    """Post-run safety sweep: destroy any leftover test droplets."""
+    """Post-run safety sweep: destroy leftover test droplets and SSH keys."""
     token = os.environ.get("DIGITALOCEAN_TOKEN")
     if not token:
         return
 
     try:
+        import digitalocean
         from infra.droplet_controller import DropletController
 
         controller = DropletController(token=token)
         controller.destroy_all()
-        print("\n[run_tests] Global cleanup complete — all tagged droplets destroyed.")
+
+        # Clean up orphaned ephemeral SSH keys (workers may have crashed)
+        manager = digitalocean.Manager(token=token)
+        prefix = "sysadmin-ai-test-ephemeral"
+        for key in manager.get_all_sshkeys():
+            if key.name.startswith(prefix):
+                try:
+                    key.destroy()
+                except Exception:
+                    pass
+
+        print("\n[run_tests] Global cleanup complete — all tagged droplets and SSH keys destroyed.")
     except Exception as exc:
         print(f"\n[run_tests] Global cleanup error: {exc}", file=sys.stderr)
 
