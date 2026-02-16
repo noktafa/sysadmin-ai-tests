@@ -7,6 +7,7 @@ from infra.droplet_controller import DropletController
 from infra.guardrails import SessionGuard, check_stale_droplets
 from infra.os_matrix import OSTarget, get_all
 from infra.ssh_driver import SSHDriver, generate_keypair
+from infra.status_monitor import StatusMonitor
 
 
 def os_target_params():
@@ -74,6 +75,24 @@ def session_guard(do_token):
     """Session-wide cost/safety guard. Logs summary and cleans up on teardown."""
     guard = SessionGuard(token=do_token)
     yield guard
+
+
+@pytest.fixture(scope="session", autouse=True)
+def status_monitor(do_token):
+    """Background thread that prints DO droplet status every 30s during tests.
+
+    Only runs on the main process (not xdist workers) to avoid duplicate output.
+    Set STATUS_MONITOR_INTERVAL env var to change the interval in seconds.
+    """
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        yield None
+        return
+
+    monitor = StatusMonitor(token=do_token)
+    monitor.start()
+    yield monitor
+    monitor.print_now()  # final status before teardown
+    monitor.stop()
 
 
 @pytest.fixture(scope="session")
