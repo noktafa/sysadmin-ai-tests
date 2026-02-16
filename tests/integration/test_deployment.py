@@ -7,6 +7,11 @@ REMOTE_DEPLOY_DIR = "/opt/sysadmin-ai"
 _setup_done = set()
 
 
+def _using_snapshot(os_target):
+    """Return True if this OS target is using a pre-built snapshot."""
+    return os_target.snapshot_image is not None
+
+
 def _run_setup_once(driver, os_target):
     """Run setup_commands once per OS target, skip on subsequent calls."""
     if os_target.name in _setup_done:
@@ -26,6 +31,8 @@ class TestDeployment:
 
     def test_setup_commands_succeed(self, ssh_connect, os_target):
         """Each os_target.setup_commands exits 0."""
+        if _using_snapshot(os_target):
+            pytest.skip("using snapshot — setup already baked in")
         driver = ssh_connect(os_target)
         try:
             _run_setup_once(driver, os_target)
@@ -36,7 +43,8 @@ class TestDeployment:
         """python3 --version works after setup."""
         driver = ssh_connect(os_target)
         try:
-            _run_setup_once(driver, os_target)
+            if not _using_snapshot(os_target):
+                _run_setup_once(driver, os_target)
             result = driver.run("python3 --version")
             assert result["exit_code"] == 0, (
                 f"python3 not available on {os_target.name}: {result['stderr']}"
@@ -47,6 +55,8 @@ class TestDeployment:
 
     def test_pip_install_openai(self, ssh_connect, os_target):
         """pip3 install openai succeeds (using os_target.pip_flags)."""
+        if _using_snapshot(os_target):
+            pytest.skip("using snapshot — openai already installed")
         driver = ssh_connect(os_target)
         try:
             _run_setup_once(driver, os_target)
@@ -89,9 +99,10 @@ class TestDeployment:
         """python3 -c 'import sysadmin_ai' works; marks deployment_state."""
         driver = ssh_connect(os_target)
         try:
-            _run_setup_once(driver, os_target)
-            pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
-            driver.run(pip_cmd, timeout=300)
+            if not _using_snapshot(os_target):
+                _run_setup_once(driver, os_target)
+                pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
+                driver.run(pip_cmd, timeout=300)
             driver.upload_dir(sysadmin_ai_path, REMOTE_DEPLOY_DIR)
 
             import_cmd = (

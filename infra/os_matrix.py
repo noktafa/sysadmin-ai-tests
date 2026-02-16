@@ -1,3 +1,7 @@
+import json
+import os
+
+
 class OSTarget:
     def __init__(self, name, image, user="root", pkg_manager="apt",
                  family="debian", python_install="", setup_commands=None,
@@ -10,6 +14,7 @@ class OSTarget:
         self.python_install = python_install
         self.setup_commands = setup_commands if setup_commands is not None else []
         self.pip_flags = pip_flags
+        self.snapshot_image = None
 
     def __repr__(self):
         return f"OSTarget(name={self.name!r}, image={self.image!r}, family={self.family!r})"
@@ -102,9 +107,43 @@ OS_MATRIX = [
 ]
 
 
-def get_all():
-    """Returns a copy of the full OS_MATRIX list."""
-    return list(OS_MATRIX)
+_SNAPSHOTS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "snapshots.json")
+
+
+def load_snapshots(targets=None):
+    """Load infra/snapshots.json and set snapshot_image on matching OS targets.
+
+    Returns the snapshot dict (or empty dict if file doesn't exist).
+    """
+    if not os.path.exists(_SNAPSHOTS_PATH):
+        return {}
+
+    with open(_SNAPSHOTS_PATH) as f:
+        snapshots = json.load(f)
+
+    if targets is None:
+        targets = OS_MATRIX
+
+    for target in targets:
+        if target.name in snapshots:
+            target.snapshot_image = str(snapshots[target.name]["snapshot_id"])
+
+    return snapshots
+
+
+def get_all(use_snapshots=True):
+    """Returns a copy of the full OS_MATRIX list.
+
+    When use_snapshots=True (default), loads infra/snapshots.json and swaps
+    target.image to the snapshot ID for any OS that has a pre-built snapshot.
+    """
+    targets = list(OS_MATRIX)
+    if use_snapshots:
+        load_snapshots(targets)
+        for target in targets:
+            if target.snapshot_image:
+                target.image = target.snapshot_image
+    return targets
 
 
 def get_by_name(name):

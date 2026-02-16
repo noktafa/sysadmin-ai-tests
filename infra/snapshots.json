@@ -1,0 +1,32 @@
+{
+  "fedora-42": {
+    "snapshot_id": 217364550,
+    "base_image": "fedora-42-x64",
+    "built_at": "2026-02-16T19:22:42.514973+00:00"
+  },
+  "debian-12": {
+    "snapshot_id": 217364553,
+    "base_image": "debian-12-x64",
+    "built_at": "2026-02-16T19:23:09.342023+00:00"
+  },
+  "almalinux-9": {
+    "snapshot_id": 217364559,
+    "base_image": "almalinux-9-x64",
+    "built_at": "2026-02-16T19:23:39.082270+00:00"
+  },
+  "ubuntu-24.04": {
+    "snapshot_id": 217364555,
+    "base_image": "ubuntu-24-04-x64",
+    "built_at": "2026-02-16T19:23:40.433966+00:00"
+  },
+  "centos-stream-9": {
+    "snapshot_id": 217364563,
+    "base_image": "centos-stream-9-x64",
+    "built_at": "2026-02-16T19:24:08.586097+00:00"
+  },
+  "ubuntu-22.04": {
+    "snapshot_id": 217364571,
+    "base_image": "ubuntu-22-04-x64",
+    "built_at": "2026-02-16T19:24:51.456106+00:00"
+  }
+}
