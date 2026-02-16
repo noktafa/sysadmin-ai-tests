@@ -44,7 +44,7 @@ def do_token():
 
 @pytest.fixture(scope="session", autouse=True)
 def preflight_check(do_token):
-    """Warn if stale droplets exist from a previous run."""
+    """Warn if stale droplets exist; fail fast if OPENAI_API_KEY is invalid."""
     stale = check_stale_droplets(do_token)
     if stale:
         names = ", ".join(d["name"] for d in stale)
@@ -53,6 +53,20 @@ def preflight_check(do_token):
             f"previous run: {names}\n"
             f"   Run 'python scripts/cleanup.py' to remove them.\n"
         )
+
+    # Validate OpenAI API key before spinning up droplets
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if api_key:
+        import openai
+
+        client = openai.OpenAI(api_key=api_key)
+        try:
+            client.models.list()
+        except openai.AuthenticationError:
+            pytest.fail(
+                "OPENAI_API_KEY is invalid (401 Authentication Error). "
+                "Update your key before running integration tests."
+            )
 
 
 @pytest.fixture(scope="session")
