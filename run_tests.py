@@ -3,7 +3,7 @@
 
 Usage:
     python run_tests.py unit                # Unit tests only
-    python run_tests.py integration         # Integration tests, parallel (7 workers)
+    python run_tests.py integration         # Integration tests, parallel (6 workers)
     python run_tests.py all                 # Both unit and integration
     python run_tests.py [pytest args]       # Pass-through to pytest
 """
