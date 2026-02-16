@@ -65,7 +65,7 @@ class TestMatrixIntegrity:
         assert len(images) == len(set(images))
 
     def test_images_end_with_x64(self):
-        for t in get_all():
+        for t in get_all(use_snapshots=False):
             assert t.image.endswith("-x64"), f"{t.name} image does not end with -x64"
 
     def test_valid_pkg_managers(self):
@@ -111,7 +111,7 @@ class TestGetByName:
             get_by_name("no-such-os")
 
     def test_all_names_retrievable(self):
-        for t in get_all():
+        for t in get_all(use_snapshots=False):
             found = get_by_name(t.name)
             assert found == t
 

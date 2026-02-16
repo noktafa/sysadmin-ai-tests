@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 
@@ -137,7 +138,7 @@ def get_all(use_snapshots=True):
     When use_snapshots=True (default), loads infra/snapshots.json and swaps
     target.image to the snapshot ID for any OS that has a pre-built snapshot.
     """
-    targets = list(OS_MATRIX)
+    targets = [copy.copy(t) for t in OS_MATRIX]
     if use_snapshots:
         load_snapshots(targets)
         for target in targets:
