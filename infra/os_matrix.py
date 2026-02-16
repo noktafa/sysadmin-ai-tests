@@ -23,7 +23,7 @@ class OSTarget:
     def __eq__(self, other):
         if not isinstance(other, OSTarget):
             return NotImplemented
-        return self.name == other.name and self.image == other.image
+        return self.name == other.name
 
 
 # cloud-init status --wait blocks until cloud-init finishes, which

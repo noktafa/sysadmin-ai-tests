@@ -111,7 +111,7 @@ class TestGetByName:
             get_by_name("no-such-os")
 
     def test_all_names_retrievable(self):
-        for t in get_all(use_snapshots=False):
+        for t in get_all():
             found = get_by_name(t.name)
             assert found == t
 
