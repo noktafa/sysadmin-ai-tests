@@ -111,15 +111,14 @@ def _ensure_deployed(driver, os_target, sysadmin_ai_path):
     if os_target.name in _deployed_targets:
         return
 
-    # Setup: wait for cloud-init + install python3/pip in one command
-    for cmd in os_target.setup_commands:
-        driver.run(cmd, timeout=300)
+    # Skip setup when using a pre-built snapshot (deps already baked in)
+    if os_target.snapshot_image is None:
+        for cmd in os_target.setup_commands:
+            driver.run(cmd, timeout=300)
+        pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
+        driver.run(pip_cmd, timeout=300)
 
-    # Install openai
-    pip_cmd = f"pip3 install {os_target.pip_flags} openai".strip()
-    driver.run(pip_cmd, timeout=300)
-
-    # Upload sysadmin-ai
+    # Upload sysadmin-ai (always needed — code must be fresh each run)
     driver.upload_dir(sysadmin_ai_path, REMOTE_DEPLOY_DIR)
 
     _deployed_targets.add(os_target.name)

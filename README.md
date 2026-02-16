@@ -8,6 +8,8 @@ Real VMs are used instead of Docker because sysadmin-ai needs to test systemd, p
 
 | Run | Tests | Passed | Skipped | Failed | Time | Notes |
 |-----|-------|--------|---------|--------|------|-------|
+| run8 | 612 | 594 | 18 | 0 | 11m55s | Snapshots + _ensure_deployed optimization |
+| run7 | 612 | 606 | 6 | 0 | 14m47s | Without snapshots (baseline comparison) |
 | run6 | 612 | 594 | 18 | 0 | 12m01s | With pre-built snapshots |
 | run5 | 90 | 90 | 0 | 0 | 9m06s | Before snapshots, before security hardening tests |
 
