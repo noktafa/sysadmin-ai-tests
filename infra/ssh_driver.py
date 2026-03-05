@@ -100,10 +100,12 @@ class SSHDriver:
         finally:
             sftp.close()
 
+    _SKIP_DIRS = {".venv", ".git", "__pycache__", "node_modules", ".tox", ".mypy_cache"}
+
     def upload_dir(self, local_path, remote_path):
         """
         Recursively upload a local directory to the remote host via SFTP.
-        Creates remote directories as needed.
+        Creates remote directories as needed. Skips .venv, .git, __pycache__.
         """
         if self._client is None:
             raise RuntimeError("Not connected. Call connect() first.")
@@ -112,6 +114,7 @@ class SSHDriver:
         try:
             self._mkdir_p(sftp, remote_path)
             for root, dirs, files in os.walk(local_path):
+                dirs[:] = [d for d in dirs if d not in self._SKIP_DIRS]
                 rel_root = os.path.relpath(root, local_path)
                 if rel_root == ".":
                     remote_root = remote_path
